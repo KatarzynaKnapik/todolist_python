@@ -1,0 +1,162 @@
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Date
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime, timedelta
+
+
+def print_menu():
+    print('1) Today\'s tasks')
+    print('2) Week\'s tasks')
+    print('3) All tasks')
+    print('4) Missed tasks')
+    print('5) Add task')
+    print('6) Delete task')
+    print('0) Exit')
+
+
+# create db file named todo db
+engine = create_engine('sqlite:///todo.db?check_same_thread=False')
+
+# super class that Table class inherits from
+Base = declarative_base()
+
+
+# class that describes a table
+class Table(Base):
+    __tablename__ = 'task'
+    id = Column(Integer, primary_key=True)
+    task = Column(String, default='todo')
+    deadline = Column(Date, default=datetime.today())
+
+    # repr in order to return str representation of class obj, each row of a table is as obj of a class in orm
+    def __repr__(self):
+        return self.string_field
+
+
+# creating a table in db
+Base.metadata.create_all(engine)
+
+# accessing db
+Session = sessionmaker(bind=engine)
+session = Session()
+
+
+def add_to_db(session, task, task_deadline):
+    task_deadline = datetime.strptime(task_deadline, '%Y-%m-%d')
+    new_row = Table(task=task, deadline=task_deadline)
+    # deadline_to_row = Table(deadline=task_deadline)
+    session.add(new_row)
+    # session.add(deadline_to_row)
+    session.commit()
+
+
+def get_from_db_today(session):
+    today = datetime.today() #todays date
+    today_day = today.day #get todays date without time
+    today_month = datetime.today().strftime('%b')
+    rows = session.query(Table).filter(Table.deadline == today.date()).all()
+
+    print(f'Today {today_day} {today_month}:')
+    if len(rows) > 0:
+        for row in rows:
+            print(str(row.id) + '. ' + row.task)
+    else:
+        print('Nothing to do!')
+
+
+def get_from_db_week(session):
+    today = datetime.today() #todays date
+
+    for day in range(7):
+        future_day = today + timedelta(days=day)
+        rows = session.query(Table).filter(Table.deadline == future_day.date()).all()
+
+        if len(rows) > 0:
+            print(future_day.strftime("%A") + ' ' + future_day.strftime("%d") + ' ' + future_day.strftime('%b'))
+            for row in rows:
+                print(str(row.id) + '. ' + row.task)
+            print('\n')
+        else:
+            print(future_day.strftime("%A") + ' ' + future_day.strftime("%d") + ' ' + future_day.strftime('%b'))
+            print('Nothing to do!')
+            print('\n')
+
+
+def print_from_db_all(session):
+    rows = session.query(Table).order_by(Table.deadline).all()
+
+    print('All tasks:')
+
+    if len(rows) > 0:
+        for row in rows:
+            print(str(row.id) + '. ' + row.task + '. ' + str(row.deadline.strftime("%d")) + ' ' + str(row.deadline.strftime("%b")))
+    else:
+        print('Nothing to do!')
+
+
+def get_from_db_all(session):
+    rows = session.query(Table).order_by(Table.deadline).all()
+    return rows
+
+
+def delete_task_from_db(session):
+    rows = get_from_db_all(session)
+    if len(rows) > 0:
+        print('Choose the number of the task you want to delete:')
+
+        for row in rows:
+            print(str(row.id) + '. ' + row.task + '. ' + str(row.deadline.strftime("%d")) + ' ' + str(row.deadline.strftime("%b")))
+
+        row_to_delete = int(input())
+        to_delete = rows[row_to_delete - 1]
+        session.delete(to_delete)
+        session.commit()
+        print('The task has been deleted!')
+    else:
+        print('Nothing to delete')
+
+
+def print_missed_tasks(session):
+    rows = session.query(Table).filter(Table.deadline < datetime.today().date()).all()
+
+    if len(rows) > 0:
+        for row in rows:
+            print(print(str(row.id) + '. ' + row.task + '. ' + str(row.deadline.strftime("%d")) + ' ' + str(row.deadline.strftime("%b"))))
+    else:
+        print('Nothing is missed!')
+
+
+# program
+while True:
+    print_menu()
+    menu_option = input()
+    if menu_option == '1':
+        print('\n')
+        get_from_db_today(session)
+        print('\n')
+    elif menu_option == '2':
+        print('\n')
+        get_from_db_week(session)
+        print('\n')
+    elif menu_option == '3':
+        print_from_db_all(session)
+        print('\n')
+    elif menu_option == '4':
+        print_missed_tasks(session)
+        print('\n')
+    elif menu_option == '5':
+        print('\n')
+        task = input('Enter task')
+        deadline = input('Enter deadline')
+        add_to_db(session, task, deadline)
+        print('The task has been added!')
+        print('\n')
+    elif menu_option == '6':
+        delete_task_from_db(session)
+        print('\n')
+    elif menu_option == '0':
+        print('Bye!')
+        break
+
+
